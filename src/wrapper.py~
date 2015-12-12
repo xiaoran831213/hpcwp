@@ -1,0 +1,104 @@
+#!/opt/software/Python/2.7.2--GCC-4.4.5/bin/python
+import pdb
+import os
+import os.path as pt
+from glob import glob as gg
+import hlp
+
+def make_parser():
+    ## build command parser:
+    import argparse
+    parser = argparse.ArgumentParser(
+        description='Create batches of HPCC submission script calling a native command.')
+
+    ## the command to be parallelized
+    parser.add_argument('cmd', metavar = 'CMD', help = 'the command to be parallelized')
+
+    ## the resource to be referenced
+    parser.add_argument(
+        '--lnk', '-l',
+        help = """the resources to be linked from the working directory of HPCC scripts,
+        seperated by comma.""")
+    ## the resource to be copied
+    parser.add_argument(
+        '--cpy', '-c',
+        help = """the resources to be copied into the working directory of HPCC scripts,
+        seperated by comma.""")
+    
+    ## number of iterations
+    parser.add_argument(
+        '--itr', '-i', type = int, default = 1000, metavar = 'I',
+        help = """iterations, the number of command copies to run. 
+        def = %(default)s""")
+    
+    ## destination directory
+    parser.add_argument(
+        '--dst', '-d', default = '.', metavar = 'D',
+        help = """destination to store HPCC script and output, which is also the working
+        directory of the HPCC script.
+        def = %(default)s.""")
+
+    parser.add_argument(
+        '--qsz', '-q', type = int, default = 4, metavar = 'SZ',
+        help = """
+        queue size. the number of command copies assigned to one processor.
+        def = %(default)s.""")
+
+    ## resource specificationso
+    parser.add_argument(
+        '--npb', '-n', type = int, default = 4, metavar = 'N',
+        help  = """
+        Nodes per batch, each node can run one CMD copy at a time.
+        def = %(default)s.""")
+    
+    parser.add_argument(
+        '--ppn', '-p', type = int, default = 1, metavar = 'P',
+        help = """
+        Processors per node, multiple processors are usefule if CMD has
+        built-in parallel mechanism.
+        def = %(default)s.""")
+
+    parser.add_argument(
+        '--mpn', '-m', type = int, default = 1.0, metavar = "M",
+        help = """
+        memory per node, the estimated memory (in GB) need to run one copy of CMD.
+        def = %(default)s.""")
+
+    parser.add_argument(
+        '--tpp', '-t', type = float, default = 0.2, metavar = 'T',
+        help = """
+        time per process, the esimated hours needed to run one copy of CMD.
+        def = %(default)s.""")
+    return parser
+
+def main(args):
+    cmd = '{c} &>{{i:04d}}.log\n'.format(c=args.cmd)
+
+    ## split possible links and copies
+    lnk = args.lnk.split(',') if args.lnk is not None else None
+    cpy = args.cpy.split(',') if args.cpy is not None else None
+    
+    for fo, cm in hlp.hpcc_iter(
+            xrange(args.itr),
+            dst=args.dst,
+            npb=args.npb, ppn=args.ppn, qsz=args.qsz, mpn=args.mpn, tpp=args.tpp,
+            lnk=lnk, cpy=cpy, mds=['R/3.0.1'], debug = False):
+
+        ## write the command
+        fo.write(cmd.format(i=cm))
+    
+def test():
+    parser = make_parser()
+    arg = parser.parse_args(['cmd1', '--itr', '100'])
+    print arg
+    
+if __name__ == '__main__':
+    import sys
+    parser = make_parser()
+    if len(sys.argv) < 2:
+        parser.print_help()
+    else:
+        args = parser.parse_args(sys.argv[1:])
+        print args
+        main(args)
+        print 'HPCC script has been writen to:', args.dst
