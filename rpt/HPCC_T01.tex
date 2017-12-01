@@ -1,0 +1,342 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Beamer Presentation
+% LaTeX Template
+% Version 1.0 (10/11/12)
+%
+% This template has been downloaded from:
+% http://www.LaTeXTemplates.com
+%
+% License:
+% CC BY-NC-SA 3.0 (http://creativecommons.org/licenses/by-nc-sa/3.0/)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%----------------------------------------------------------------------------------------
+%	PACKAGES AND THEMES
+%----------------------------------------------------------------------------------------
+
+\documentclass{beamer}
+
+\mode<presentation> {
+
+% The Beamer class comes with a number of default slide themes
+% which change the colors and layouts of slides. Below this is a list
+% of all the themes, uncomment each in turn to see what they look like.
+
+%\usetheme{default}
+%\usetheme{AnnArbor}
+%\usetheme{Antibes}
+%\usetheme{Bergen}
+%\usetheme{Berkeley}
+%\usetheme{Berlin}
+%\usetheme{Boadilla}
+%\usetheme{CambridgeUS}
+%\usetheme{Copenhagen}
+%\usetheme{Darmstadt}
+%\usetheme{Dresden}
+%\usetheme{Frankfurt}
+%\usetheme{Goettingen}
+%\usetheme{Hannover}
+%\usetheme{Ilmenau}
+%\usetheme{JuanLesPins}
+%\usetheme{Luebeck}
+\usetheme{Madrid}
+%\usetheme{Malmoe}
+%\usetheme{Marburg}
+%\usetheme{Montpellier}
+%\usetheme{PaloAlto}
+%\usetheme{Pittsburgh}
+%\usetheme{Rochester}
+%\usetheme{Singapore}
+%\usetheme{Szeged}
+%\usetheme{Warsaw}
+
+% As well as themes, the Beamer class has a number of color themes
+% for any slide theme. Uncomment each of these in turn to see how it
+% changes the colors of your current slide theme.
+
+%\usecolortheme{albatross}
+%\usecolortheme{beaver}
+%\usecolortheme{beetle}
+%\usecolortheme{crane}
+%\usecolortheme{dolphin}
+%\usecolortheme{dove}
+%\usecolortheme{fly}
+%\usecolortheme{lily}
+%\usecolortheme{orchid}
+%\usecolortheme{rose}
+%\usecolortheme{seagull}
+%\usecolortheme{seahorse}
+%\usecolortheme{whale}
+%\usecolortheme{wolverine}
+
+%\setbeamertemplate{footline} % To remove the footer line in all slides uncomment this line
+%\setbeamertemplate{footline}[page number] % To replace the footer line in all slides with a simple slide count uncomment this line
+
+%\setbeamertemplate{navigation symbols}{} % To remove the navigation symbols from the bottom of all slides uncomment this line
+}
+
+\usepackage{graphicx} % Allows including images
+\usepackage{booktabs} % Allows the use of \toprule, \midrule and \bottomrule in tables
+
+%----------------------------------------------------------------------------------------
+%	TITLE PAGE
+%----------------------------------------------------------------------------------------
+
+\title[Effective HPCC]{Effective Operation on MSU HPCC} % The short title appears at the bottom of every slide, the full title is only on the title page
+
+\author{Xiaoran Tong} % Your name
+\institute[EPI Biosta, MSU] % Your institution as it will appear on the bottom of every slide, may be shorthand to save space
+{
+Department of Epidemiology and Biostatistics
+Michigan State University \\ % Your institution for the title page
+\medskip
+\textit{tongxia1@msu.com} % Your email address
+}
+\date{\today} % Date, can be changed to a custom date
+
+\begin{document}
+
+\begin{frame}
+\titlepage % Print the title page as the first slide
+\end{frame}
+
+\begin{frame}
+\frametitle{Table of Content} % Table of contents slide, comment this block out to remove it
+\tableofcontents % Throughout your presentation, if you choose to use \section{} and \subsection{} commands, these will automatically be printed on this slide as an overview of your presentation
+\end{frame}
+
+%----------------------------------------------------------------------------------------
+%	PRESENTATION SLIDES
+%----------------------------------------------------------------------------------------
+
+\begin{frame}
+\frametitle{The Purpose}
+When wield properly, HPCC is a powerful aid for projects involving heavy computation.\\~\\
+
+It however demands inhibiting amount of planning, setup, and post-processing. \\~\\
+
+The main purpose of this presentation is to (not in strict order)
+\begin{itemize}
+\item layout the thought process of parallelism;
+\item a tutorial of the HPCC helper script: \textbf{hpcwp};
+\item a cookbook for for common computation tasks.
+\end{itemize}
+
+\end{frame}
+
+%------------------------------------------------
+\section{Overview} % Sections can be created in order to organize your presentation into discrete blocks, all sections and subsections are automatically printed in the table of contents as an overview of the talk
+%------------------------------------------------
+
+%\subsection{Subsection Example} % A subsection can be created just before a set of slides with a common theme to further break down your presentation into chunks
+
+%------------------------------------------------
+
+\begin{frame}
+\frametitle{Generic Work-flow on HPCC}
+For any High Performance Computation, the parallelism amount to:
+\begin{block}{Step 1}
+Rewrite the task as independent batches of command;
+\end{block}
+
+\begin{block}{Step 2}
+Distribute the batches to many HPCC jobs then wait;
+\end{block}
+
+\begin{block}{Step 3}
+Aggregate the outputs.
+\end{block}
+\end{frame}
+
+%------------------------------------------------
+
+\begin{frame}
+\frametitle{Generic Work-flow on HPCC, continue}
+\begin{itemize}
+\item Step 2 use to be the bulk of human labor, due to hardly avoidable trail and error of PBS scripting;
+\item With the help of \textbf{hpcwp} though, step 1 now stands out to be the most annoying;
+\item Being careful with step 1 greatly facilitate step 2 and 3.
+\end{itemize}
+
+\end{frame}
+
+%------------------------------------------------
+\subsection{A Motivating Example}
+\begin{frame}
+\frametitle{Example: Tidy 1K Genome Project data}
+
+\textbf{Description of Task:} \\
+After downloading 22 \textbf{vcf.gz}[?] from NCBI, one per autosome, we wish to
+\begin{itemize}
+\item keep only SNPs with MAF \(\ge\) 0.005;
+\item drop 'INFO' field.
+\end{itemize}
+Doing so would
+\begin{itemize}
+\item reduce the size of data;
+\item speed up random access;
+\item retain credible variants.
+\end{itemize}
+\small [?] variant call format
+\end{frame}
+
+%------------------------------------------------
+
+\begin{frame}[fragile]
+\frametitle{Example: Continue}
+Two lines of commands are needed to process one \textbf{vcf} (one chromosome):
+\begin{example}[reduction of chromosome NO. 1]
+\tiny
+\begin{verbatim}
+bcftools view raw/000/01.vcf.gz -i 'MAF>0.00499' -v snps | bcftools annotate -x INFO -Oz -o 01.vcf.gz
+bcftools index -t 01.vcf.gz
+\end{verbatim}
+\end{example}
+The 2nd line is not independent of the 1st, since it operates on the output of the 1st, '01.vcf.gz', but both
+lines are not interfering with commands dealing with rest of the (21) autosome \textbf{vcf.gz} files.
+\\~\\
+The obvious strategy to parallel the task is to arrange 22 jobs, one per autosome.
+\end{frame}
+
+%------------------------------------------------
+
+\begin{frame}[fragile]
+\frametitle{Example: Continue}
+\textbf{Step 1: Rewrite the task as independent batches of command} \\
+suppose we wrote them in "\verb|src/tidy.sh|", under the present working directory.
+\begin{example}[22 batches of command to tidy up 22 autosomes]
+\tiny \begin{verbatim}
+# ------ within src/tidy.sh ------ #
+bcftools view raw/000/01.vcf.gz -i 'MAF>0.00499' -v snps | bcftools annotate -x INFO -Oz -o 01.vcf.gz # 01
+bcftools index -t 01.vcf.gz                                                                           # 01
+bcftools view raw/000/02.vcf.gz -i 'MAF>0.00499' -v snps | bcftools annotate -x INFO -Oz -o 02.vcf.gz # 02
+bcftools index -t 02.vcf.gz                                                                           # 02
+        ...      ...
+bcftools view raw/000/22.vcf.gz -i 'MAF>0.00499' -v snps | bcftools annotate -x INFO -Oz -o 22.vcf.gz # 22
+bcftools index -t 22.vcf.gz                                                                           # 22
+# ------ end of src/tidy.sh ------ #
+\end{verbatim}
+\end{example}
+The principle is, the batches of command must accomplish the same goal when executed sequentially, given an
+infinite time budget.
+\end{frame}
+
+%------------------------------------------------
+
+\begin{frame}[fragile]
+\frametitle{Example: A look around before Step 2}
+\begin{figure}
+\includegraphics[width=0.7\linewidth]{step1}
+\end{figure}
+\begin{itemize}
+\item the \textbf{"."} on the top left point out the present working directory
+\item besides "raw" and "src" that directly seen from PWD any item further down the tree must be referred via its full name;
+\item there is a temptation to "cd" down to "raw/000" to save future typing when working on those
+*.vcf.gz, but it would be harder to call on the others, such as "src/tidy.sh".
+\end{itemize}
+
+\end{frame}
+
+%------------------------------------------------
+
+\begin{frame}[fragile]
+\textbf{Step 2: dispatch the batches to HPCC jobs} \\
+we dispatch the 22 batches to 22 jobs, asking for less is noble but unnecessary, more is a waste (why?);
+the downloaded autosomes are located in \textbf{raw/000}, we plan to place the tidy output in \textbf{raw/100};
+\begin{example}[22 batches dispatched to 22 jobs]
+\tiny \begin{verbatim}
+hpcwp src/tidy.sh -draw/100 -q2 --ln raw     # use hpcwp to arrange the jobs under raw/100
+raw/100/sub.sh                               # submit the jobs
+# grep a cut of tee, in the mean time, use 'qstat -u YOUR_MSU_NETID' to monitor the HPCC jobs.
+\end{verbatim}
+\end{example}
+\begin{itemize}
+\item \textbf{hpcwp} scans "\textbf{src/tidy.sh}" from top to bottom and dispatch the items to 22 jobs under "\textbf{raw/100}";
+\item \textbf{raw/100} is the \textbf{job home}, which is specified by \textbf{-d};
+\item a common practice is to let the output directory be the \textbf{job home}.
+\end{itemize}
+\end{frame}
+
+%------------------------------------------------
+\begin{frame}
+\frametitle{More Explanation:}
+
+\begin{itemize}
+\item \texttt{-q2} states the size of command queue is \textbf{2}, and because by default a batch allows
+only a single command queue, it amounts to say that each batch contains 2 commands;
+\item \texttt{--ln raw} creates a symbolic link within the job home '\textbf{raw/100}', only then will HPCC be
+able to to 'see' the folder 'raw', when it enters the job home to respond to the submitted jobs.
+\end{itemize}
+\end{frame}
+
+%------------------------------------------------
+
+\begin{frame}[fragile]
+\frametitle{A look around after Step 2}
+\begin{figure}
+\includegraphics[width=0.7\linewidth]{step2}
+\end{figure}
+\end{frame}
+
+%------------------------------------------------
+\begin{frame}[fragile]
+\frametitle{Example: before and after}
+\begin{columns}[c] % The "c" option specifies centered vertical alignment while the "t" option is used for top vertical alignment
+
+\column{.45\textwidth} % Left column and width
+\begin{itemize}
+\item the 22 jobs were put in "pbs" created under job home, and named by 3 digits;
+\item a call to "raw/100/sub.sh" will submitted them all;
+\item After HPCC done with them, 22 tidied up files appeared in the job home which is the same as preplanned output directory; 
+
+\end{itemize}
+
+\column{.5\textwidth} % Right column and width
+
+
+\tiny
+\textbf{Before}
+\begin{verbatim}
+[tongxia1@... 1kg]$ ls -hog raw/000/*.vcf.gz
+1.2G Jun 29  2016 raw/000/01.vcf.gz
+1.3G Jun 29  2016 raw/000/02.vcf.gz
+... ...
+205M Jun 29  2016 raw/000/22.vcf.gz
+\end{verbatim}
+
+\textbf{After}
+\begin{verbatim}
+[tongxia1@... 1kg]$ ls -hog raw/100/*.vcf.gz
+546M Jun 24 12:41 raw/100/01.vcf.gz
+584M Jun 24 12:41 raw/100/02.vcf.gz
+... ...
+ 99M Jun 24 12:24 raw/100/22.vcf.gz
+\end{verbatim}
+\end{columns}
+\end{frame}
+
+%------------------------------------------------
+
+\begin{frame}
+\textbf{Step 3: aggregate output}
+For this particular data clean up operation, there is no need to collect output. For most scientific
+computation (e.g., simulation), this is necessary.
+\end{frame}
+
+%------------------------------------------------
+\section{hpcwp -- The HPCC Wrapper}
+%------------------------------------------------
+
+
+%------------------------------------------------
+\section{Tested Practices}
+%------------------------------------------------
+
+\begin{frame}
+\Huge{\centerline{The End}}
+\end{frame}
+
+%----------------------------------------------------------------------------------------
+
+\end{document} 
