@@ -79,6 +79,34 @@
 \usepackage{graphicx} % Allows including images
 \usepackage{booktabs} % Allows the use of \toprule, \midrule and \bottomrule in tables
 
+\usepackage{listings}
+
+\definecolor{Brown}{cmyk}{0,0.81,1,0.60}
+\definecolor{OliveGreen}{cmyk}{0.64,0,0.95,0.40}
+\definecolor{CadetBlue}{cmyk}{0.62,0.57,0.23,0}
+\definecolor{lightlightgray}{gray}{0.9}
+
+\lstset{
+language=bash,                  % Code langugage
+basicstyle=\tiny\ttfamily,      % Code font
+keywordstyle=\color{blue},      % Keywords font ('*' = uppercase)
+commentstyle=\color{gray},      % Comments font
+numbers=left,                           % Line nums position
+numberstyle=\tiny,                      % Line-numbers fonts
+stepnumber=1,                           % Step between two line-numbers
+numbersep=5pt,                          % How far are line-numbers from code
+backgroundcolor=\color{lightlightgray}, % Choose background color
+frame=single,                             % A frame around the code
+tabsize=4,                              % Default tab size
+captionpos=b,                           % Caption-position = bottom
+breaklines=true,                        % Automatic line breaking?
+breakatwhitespace=false,                % Automatic breaks only at whitespace?
+showspaces=false,                       % Dont make spaces visible
+showtabs=false,                         % Dont make tabls visible
+columns=flexible,                       % Column format
+morekeywords={find, tar, ls, bcftools},
+}
+
 %----------------------------------------------------------------------------------------
 %	TITLE PAGE
 %----------------------------------------------------------------------------------------
@@ -185,18 +213,18 @@ Doing so would
 
 \begin{frame}[fragile]
 \frametitle{Example: Continue}
-Two lines of commands are needed to process one \textbf{vcf} (one chromosome):
-\begin{example}[reduction of chromosome NO. 1]
-\tiny
-\begin{verbatim}
+Two lines are required to process one \textbf{vcf} (one autosome):
+%\begin{example}[tidy up chromosome 1]
+\begin{lstlisting}
 bcftools view raw/000/01.vcf.gz -i 'MAF>0.00499' -v snps | bcftools annotate -x INFO -Oz -o 01.vcf.gz
 bcftools index -t 01.vcf.gz
-\end{verbatim}
-\end{example}
-The 2nd line is not independent of the 1st, since it operates on the output of the 1st, '01.vcf.gz', but both
-lines are not interfering with commands dealing with rest of the (21) autosome \textbf{vcf.gz} files.
-\\~\\
-The obvious strategy to parallel the task is to arrange 22 jobs, one per autosome.
+\end{lstlisting}
+%\end{example}
+\begin{itemize}
+\item the 2nd line depends on the first, it operates on the output file ``01.vcf.gz'';
+\item thay are not interfering with other chromosomes (\textbf{\{02..22\}.vcf.gz}).
+\end{itemize}
+The obvious strategy is to arrange 22 batches, one for each autosome, two lines per batch.
 \end{frame}
 
 %------------------------------------------------
@@ -206,19 +234,19 @@ The obvious strategy to parallel the task is to arrange 22 jobs, one per autosom
 \textbf{Step 1: Rewrite the task as independent batches of command} \\
 suppose we wrote them in "\verb|src/tidy.sh|", under the present working directory.
 \begin{example}[22 batches of command to tidy up 22 autosomes]
-\tiny \begin{verbatim}
+\begin{lstlisting}
 # ------ within src/tidy.sh ------ #
-bcftools view raw/000/01.vcf.gz -i 'MAF>0.00499' -v snps | bcftools annotate -x INFO -Oz -o 01.vcf.gz # 01
-bcftools index -t 01.vcf.gz                                                                           # 01
-bcftools view raw/000/02.vcf.gz -i 'MAF>0.00499' -v snps | bcftools annotate -x INFO -Oz -o 02.vcf.gz # 02
-bcftools index -t 02.vcf.gz                                                                           # 02
+bcftools view raw/000/01.vcf.gz -i 'MAF>0.00499' -v snps | bcftools annotate -x INFO -Oz -o 01.vcf.gz
+bcftools index -t 01.vcf.gz
+bcftools view raw/000/02.vcf.gz -i 'MAF>0.00499' -v snps | bcftools annotate -x INFO -Oz -o 02.vcf.gz
+bcftools index -t 02.vcf.gz
         ...      ...
-bcftools view raw/000/22.vcf.gz -i 'MAF>0.00499' -v snps | bcftools annotate -x INFO -Oz -o 22.vcf.gz # 22
-bcftools index -t 22.vcf.gz                                                                           # 22
+bcftools view raw/000/22.vcf.gz -i 'MAF>0.00499' -v snps | bcftools annotate -x INFO -Oz -o 22.vcf.gz
+bcftools index -t 22.vcf.gz
 # ------ end of src/tidy.sh ------ #
-\end{verbatim}
+\end{lstlisting}
 \end{example}
-The principle is, the batches of command must accomplish the same goal when executed sequentially, given an
+The principle is, the batches of command must accomplish the same when executed sequentially, given an
 infinite time budget.
 \end{frame}
 
@@ -227,13 +255,16 @@ infinite time budget.
 \begin{frame}[fragile]
 \frametitle{Example: A look around before Step 2}
 \begin{figure}
-\includegraphics[width=0.7\linewidth]{step1}
+\includegraphics[width=0.7\linewidth]{img/step1}
 \end{figure}
 \begin{itemize}
-\item the \textbf{"."} on the top left point out the present working directory
-\item besides "raw" and "src" that directly seen from PWD any item further down the tree must be referred via its full name;
-\item there is a temptation to "cd" down to "raw/000" to save future typing when working on those
-*.vcf.gz, but it would be harder to call on the others, such as "src/tidy.sh".
+\item the top \textbf{"."} points out present working directory (\textbf{PWD})
+\item "raw" and "src" are visible under PWD
+\item items further down the tree must be referred via full name, e.g.:
+  \begin{itemize}
+  \item raw/000/01.vcf.gz
+  \item src/tidy.sh
+  \end{itemize}
 \end{itemize}
 
 \end{frame}
@@ -242,29 +273,27 @@ infinite time budget.
 
 \begin{frame}[fragile]
 \textbf{Step 2: dispatch the batches to HPCC jobs} \\
-we dispatch the 22 batches to 22 jobs, asking for less is noble but unnecessary, more is a waste (why?);
+Dispatch the 22 batches to 22 jobs, asking for less is noble but unnecessary, more is a waste (why?);
 the downloaded autosomes are located in \textbf{raw/000}, we plan to place the tidy output in \textbf{raw/100};
 \begin{example}[22 batches dispatched to 22 jobs]
-\tiny \begin{verbatim}
-hpcwp src/tidy.sh -draw/100 -q2 --ln raw     # use hpcwp to arrange the jobs under raw/100
-raw/100/sub.sh                               # submit the jobs
-# grep a cut of tee, in the mean time, use 'qstat -u YOUR_MSU_NETID' to monitor the HPCC jobs.
-\end{verbatim}
+\begin{lstlisting}
+hpcwp src/tidy.sh -d raw/100 -q2 --ln raw # arrange the jobs
+raw/100/sub.sh # submit the jobs
+# grep a cut of tee and wait, use 'qstat -u NETID' to monitor the HPCC jobs.
+\end{lstlisting}
 \end{example}
 \begin{itemize}
-\item \textbf{hpcwp} scans "\textbf{src/tidy.sh}" from top to bottom and dispatch the items to 22 jobs under "\textbf{raw/100}";
-\item \textbf{raw/100} is the \textbf{job home}, which is specified by \textbf{-d};
-\item a common practice is to let the output directory be the \textbf{job home}.
+\item \textbf{hpcwp} scans "\textbf{src/tidy.sh}" top to bottom and dispatch the items to 22 jobs under "\textbf{raw/100}";
+\item \textbf{raw/100} is the \textbf{job home}, specified by the \textbf{-d} option;
+\item letting the \textbf{job home} be the same with preplaned output directory is a common practice.
 \end{itemize}
 \end{frame}
 
 %------------------------------------------------
 \begin{frame}
 \frametitle{More Explanation:}
-
 \begin{itemize}
-\item \texttt{-q2} states the size of command queue is \textbf{2}, and because by default a batch allows
-only a single command queue, it amounts to say that each batch contains 2 commands;
+\item \texttt{-q2} states the size of command queue is \textbf{2} (per batch *)
 \item \texttt{--ln raw} creates a symbolic link within the job home '\textbf{raw/100}', only then will HPCC be
 able to to 'see' the folder 'raw', when it enters the job home to respond to the submitted jobs.
 \end{itemize}
@@ -275,7 +304,7 @@ able to to 'see' the folder 'raw', when it enters the job home to respond to the
 \begin{frame}[fragile]
 \frametitle{A look around after Step 2}
 \begin{figure}
-\includegraphics[width=0.7\linewidth]{step2}
+\includegraphics[width=0.6\linewidth]{img/step2_ln}
 \end{figure}
 \end{frame}
 
@@ -294,25 +323,23 @@ able to to 'see' the folder 'raw', when it enters the job home to respond to the
 
 \column{.5\textwidth} % Right column and width
 
-
-\tiny
 \textbf{Before}
-\begin{verbatim}
-[tongxia1@... 1kg]$ ls -hog raw/000/*.vcf.gz
+\begin{lstlisting}[numbers=none]
+ls -hog raw/000/*.vcf.gz
 1.2G Jun 29  2016 raw/000/01.vcf.gz
 1.3G Jun 29  2016 raw/000/02.vcf.gz
 ... ...
 205M Jun 29  2016 raw/000/22.vcf.gz
-\end{verbatim}
+\end{lstlisting} 
 
 \textbf{After}
-\begin{verbatim}
-[tongxia1@... 1kg]$ ls -hog raw/100/*.vcf.gz
+\begin{lstlisting}[numbers=none]
+ls -hog raw/100/*.vcf.gz
 546M Jun 24 12:41 raw/100/01.vcf.gz
 584M Jun 24 12:41 raw/100/02.vcf.gz
 ... ...
  99M Jun 24 12:24 raw/100/22.vcf.gz
-\end{verbatim}
+\end{lstlisting}
 \end{columns}
 \end{frame}
 
