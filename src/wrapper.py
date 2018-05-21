@@ -300,7 +300,8 @@ def test():
     #     for i in range(20):
     #         f.write('Ca{i:02d} -o; Cb{i:02d} -o {{n:03d}}.rs\n'.format(i=i))
     parser = make_parser()
-    cmd = 'cmd.sh -d tmp/d1 -q8 -a4 -b4 -p4 -t.5 -m2 --log None'
+    # cmd = 'cmd.sh -d tmp/d1 -q8 -a4 -b4 -p4 -t.5 -m2 --log None'
+    cmd = 'db2.cmd -d tmp/d1 -q67 -t.5 -m2 --log None'
     arg = parser.parse_args(cmd.split())
     return main(arg)
 

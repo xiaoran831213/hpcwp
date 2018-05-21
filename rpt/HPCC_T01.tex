@@ -80,6 +80,7 @@
 \usepackage{booktabs} % Allows the use of \toprule, \midrule and \bottomrule in tables
 
 \usepackage{listings}
+\usepackage{verbatim}
 
 \definecolor{Brown}{cmyk}{0,0.81,1,0.60}
 \definecolor{OliveGreen}{cmyk}{0.64,0,0.95,0.40}
@@ -91,7 +92,7 @@ language=bash,                  % Code langugage
 basicstyle=\tiny\ttfamily,      % Code font
 keywordstyle=\color{blue},      % Keywords font ('*' = uppercase)
 commentstyle=\color{gray},      % Comments font
-numbers=left,                           % Line nums position
+numbers=none,                           % Line nums position (e.g., left)
 numberstyle=\tiny,                      % Line-numbers fonts
 stepnumber=1,                           % Step between two line-numbers
 numbersep=5pt,                          % How far are line-numbers from code
@@ -107,6 +108,7 @@ columns=flexible,                       % Column format
 morekeywords={find, tar, ls, bcftools},
 }
 
+\input{xtong}
 %----------------------------------------------------------------------------------------
 %	TITLE PAGE
 %----------------------------------------------------------------------------------------
@@ -192,13 +194,14 @@ Aggregate the outputs.
 %------------------------------------------------
 \subsection{A Motivating Example}
 \begin{frame}
-\frametitle{Example: Tidy 1K Genome Project data}
+\frametitle{A Motivating Example: Tidy up 1000 genome data}
 
 \textbf{Description of Task:} \\
-After downloading 22 \textbf{vcf.gz}[?] from NCBI, one per autosome, we wish to
+After downloading 22 \textbf{vcf.gz} from NCBI, one per autosome, we put them whin
+\textbf{raw/000}, and wish to
 \begin{itemize}
 \item keep only SNPs with MAF \(\ge\) 0.005;
-\item drop 'INFO' field.
+\item drop redundant information field.
 \end{itemize}
 Doing so would
 \begin{itemize}
@@ -206,17 +209,15 @@ Doing so would
 \item speed up random access;
 \item retain credible variants.
 \end{itemize}
-\small [?] variant call format
 \end{frame}
 
 %------------------------------------------------
-
 \begin{frame}[fragile]
 \frametitle{Example: Continue}
 Two lines are required to process one \textbf{vcf} (one autosome):
 %\begin{example}[tidy up chromosome 1]
 \begin{lstlisting}
-bcftools view raw/000/01.vcf.gz -i 'MAF>0.00499' -v snps | bcftools annotate -x INFO -Oz -o 01.vcf.gz
+bcftools view raw/000/01.vcf.gz -i 'MAF>0.0049' -v snps | bcftools annotate -x INFO -Oz -o 01.vcf.gz
 bcftools index -t 01.vcf.gz
 \end{lstlisting}
 %\end{example}
@@ -236,12 +237,12 @@ suppose we wrote them in "\verb|src/tidy.sh|", under the present working directo
 \begin{example}[22 batches of command to tidy up 22 autosomes]
 \begin{lstlisting}
 # ------ within src/tidy.sh ------ #
-bcftools view raw/000/01.vcf.gz -i 'MAF>0.00499' -v snps | bcftools annotate -x INFO -Oz -o 01.vcf.gz
+bcftools view raw/000/01.vcf.gz -i 'MAF>0.0049' -v snps | bcftools annotate -x INFO -Oz -o 01.vcf.gz
 bcftools index -t 01.vcf.gz
-bcftools view raw/000/02.vcf.gz -i 'MAF>0.00499' -v snps | bcftools annotate -x INFO -Oz -o 02.vcf.gz
+bcftools view raw/000/02.vcf.gz -i 'MAF>0.0049' -v snps | bcftools annotate -x INFO -Oz -o 02.vcf.gz
 bcftools index -t 02.vcf.gz
         ...      ...
-bcftools view raw/000/22.vcf.gz -i 'MAF>0.00499' -v snps | bcftools annotate -x INFO -Oz -o 22.vcf.gz
+bcftools view raw/000/22.vcf.gz -i 'MAF>0.0049' -v snps | bcftools annotate -x INFO -Oz -o 22.vcf.gz
 bcftools index -t 22.vcf.gz
 # ------ end of src/tidy.sh ------ #
 \end{lstlisting}
@@ -258,7 +259,7 @@ infinite time budget.
 \includegraphics[width=0.7\linewidth]{img/step1}
 \end{figure}
 \begin{itemize}
-\item the top \textbf{"."} points out present working directory (\textbf{PWD})
+\item the top \textbf{"."} points to the present working directory (\textbf{PWD})
 \item "raw" and "src" are visible under PWD
 \item items further down the tree must be referred via full name, e.g.:
   \begin{itemize}
@@ -273,19 +274,24 @@ infinite time budget.
 
 \begin{frame}[fragile]
 \textbf{Step 2: dispatch the batches to HPCC jobs} \\
-Dispatch the 22 batches to 22 jobs, asking for less is noble but unnecessary, more is a waste (why?);
-the downloaded autosomes are located in \textbf{raw/000}, we plan to place the tidy output in \textbf{raw/100};
+Dispatch the 22 batches to 22 jobs.
+the downloaded autosomes are located in \textbf{raw/000}, we plan to place the output in \textbf{raw/100};
 \begin{example}[22 batches dispatched to 22 jobs]
 \begin{lstlisting}
-hpcwp src/tidy.sh -d raw/100 -q2 --ln raw # arrange the jobs
-raw/100/sub.sh # submit the jobs
-# grep a cut of tee and wait, use 'qstat -u NETID' to monitor the HPCC jobs.
+hpcwp src/tidy.sh -d raw/100 -q2 --ln raw # prepare the jobs
+cd raw/100                                # goto job home / output
+./sub.sh                                  # submit the jobs
+# grep a cut of tee and wait, use 'qstat -u <ID> to monitor the HPCC jobs.
 \end{lstlisting}
 \end{example}
 \begin{itemize}
-\item \textbf{hpcwp} scans "\textbf{src/tidy.sh}" top to bottom and dispatch the items to 22 jobs under "\textbf{raw/100}";
+\item \textbf{hpcwp} scans 44 lines in "\textbf{src/tidy.sh}" top to bottom;
 \item \textbf{raw/100} is the \textbf{job home}, specified by the \textbf{-d} option;
-\item letting the \textbf{job home} be the same with preplaned output directory is a common practice.
+  \begin{itemize}
+  \item letting the \textbf{job home} be the same with planed output directory is a common practice.
+  \item the \textbf{jobs} will be put under "\textbf{raw/100/pbs}"
+  \end{itemize}
+\item \texttt{-q2} set the queue size to \textbf{2}, hence $44 \div 2 = 22$ batches(*)
 \end{itemize}
 \end{frame}
 
@@ -293,56 +299,37 @@ raw/100/sub.sh # submit the jobs
 \begin{frame}
 \frametitle{More Explanation:}
 \begin{itemize}
-\item \texttt{-q2} states the size of command queue is \textbf{2} (per batch *)
-\item \texttt{--ln raw} creates a symbolic link within the job home '\textbf{raw/100}', only then will HPCC be
-able to to 'see' the folder 'raw', when it enters the job home to respond to the submitted jobs.
+\item \texttt{--ln raw} creates a symbolic link within the job home
+  '\textbf{raw/100}' pointing to \textbf{raw}, only then will HPCC be
+  able to to 'see' the folder 'raw' when it gose inside of the job
+  home.
+\item {\color{red}\texttt{cd raw/100}} change the present working
+  directory to the job home, where we call
+  {\color{red}\texttt{./sub.sh}} to submit them, and wait for them to
+  finish;
+\item use \texttt{qstat -u <MSU NetID>} to monitor the execution.
 \end{itemize}
 \end{frame}
-
-%------------------------------------------------
-
-\begin{frame}[fragile]
-\frametitle{A look around after Step 2}
-\begin{figure}
-\includegraphics[width=0.6\linewidth]{img/step2_ln}
-\end{figure}
+% ------------------------------------------------
+\begin{frame}
+  \frametitle{Step 2: job praperation}
+  \includegraphics[width=1.0\linewidth]{img/step_2_a}
 \end{frame}
-
-%------------------------------------------------
-\begin{frame}[fragile]
-\frametitle{Example: before and after}
-\begin{columns}[c] % The "c" option specifies centered vertical alignment while the "t" option is used for top vertical alignment
-
-\column{.45\textwidth} % Left column and width
-\begin{itemize}
-\item the 22 jobs were put in "pbs" created under job home, and named by 3 digits;
-\item a call to "raw/100/sub.sh" will submitted them all;
-\item After HPCC done with them, 22 tidied up files appeared in the job home which is the same as preplanned output directory; 
-
-\end{itemize}
-
-\column{.5\textwidth} % Right column and width
-
-\textbf{Before}
-\begin{lstlisting}[numbers=none]
-ls -hog raw/000/*.vcf.gz
-1.2G Jun 29  2016 raw/000/01.vcf.gz
-1.3G Jun 29  2016 raw/000/02.vcf.gz
-... ...
-205M Jun 29  2016 raw/000/22.vcf.gz
-\end{lstlisting} 
-
-\textbf{After}
-\begin{lstlisting}[numbers=none]
-ls -hog raw/100/*.vcf.gz
-546M Jun 24 12:41 raw/100/01.vcf.gz
-584M Jun 24 12:41 raw/100/02.vcf.gz
-... ...
- 99M Jun 24 12:24 raw/100/22.vcf.gz
-\end{lstlisting}
-\end{columns}
+% ------------------------------------------------
+\begin{frame}
+  \frametitle{Step 2: job praperation, continue}
+  \includegraphics[width=1.0\linewidth]{img/step_2_b}
 \end{frame}
-
+% ------------------------------------------------
+\begin{frame}
+  \frametitle{step 2: job monitoring}
+  \includegraphics[width=1.0\linewidth]{img/step_2_c}
+\end{frame}
+% ------------------------------------------------
+\begin{frame}
+  \frametitle{Step 2: finish}
+  \includegraphics[width=1.0\linewidth]{img/step_2_d}
+\end{frame}
 %------------------------------------------------
 
 \begin{frame}
@@ -355,9 +342,30 @@ computation (e.g., simulation), this is necessary.
 \section{hpcwp -- The HPCC Wrapper}
 %------------------------------------------------
 
-
 %------------------------------------------------
 \section{Tested Practices}
+\subsection{compose series of }
+\begin{itemize}
+\item in the motivation example, writing 24 commands into ``tidy.sh'' was a tedious task but
+not impossible
+\item in most scientific project however, the number of commands to write can be impractical
+  for manual typing:
+  \begin{itemize}
+  \item write 808 Freesurfer importation commands, and another 808
+    cortical surface reconstruction commands
+  \item write 8000 simulation commands which use 2 types kernel, 4
+    levels of sample sizes, each repeat 1000 time
+  \end{itemize}
+\item automated command writing:
+  \begin{itemize}
+  \item use excel
+  \item use \xemp{R}: \textbf{expand.grid}, \textbf{paste}, and
+    \textbf{sprintf}
+  \item use Python generator/iterator and string.format
+  \item use GNU script
+  \item 
+  \end{itemize}
+\end{itemize}
 %------------------------------------------------
 
 \begin{frame}
