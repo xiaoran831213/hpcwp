@@ -299,7 +299,7 @@ cd raw/100                                # goto job home / output
 \begin{frame}
 \frametitle{More Explanation:}
 \begin{itemize}
-\item \texttt{--ln raw} creates a symbolic link within the job home
+\item {\color{red}\texttt{--ln raw}} creates a symbolic link within the job home
   '\textbf{raw/100}' pointing to \textbf{raw}, only then will HPCC be
   able to to 'see' the folder 'raw' when it gose inside of the job
   home.
@@ -340,38 +340,78 @@ computation (e.g., simulation), this is necessary.
 
 %------------------------------------------------
 \section{hpcwp -- The HPCC Wrapper}
-%------------------------------------------------
-
-%------------------------------------------------
-\section{Tested Practices}
-\subsection{compose series of }
-\begin{itemize}
-\item in the motivation example, writing 24 commands into ``tidy.sh'' was a tedious task but
-not impossible
-\item in most scientific project however, the number of commands to write can be impractical
-  for manual typing:
+\begin{frame}
+  \frametitle{The HPCC Wrapper}
+  The hpcwp script can do more:
   \begin{itemize}
-  \item write 808 Freesurfer importation commands, and another 808
-    cortical surface reconstruction commands
-  \item write 8000 simulation commands which use 2 types kernel, 4
-    levels of sample sizes, each repeat 1000 time
-  \end{itemize}
-\item automated command writing:
-  \begin{itemize}
-  \item use excel
-  \item use \xemp{R}: \textbf{expand.grid}, \textbf{paste}, and
-    \textbf{sprintf}
-  \item use Python generator/iterator and string.format
-  \item use GNU script
   \item 
   \end{itemize}
-\end{itemize}
+\end{frame}
 %------------------------------------------------
-
+\section{Tested Practices}
+\subsection{covernt scripts to commands (stub)}
+\begin{frame}
+  \frametitle{covernt scripts to commands (stub)}
+  Scripts are usually compsed and tested interactively (i.e., under a
+  programing enviroment like RStudio), but itself is not sutible for
+  parallel computation; \\
+  it must be able to execute non-interactively; \\
+  \textbf{quick workaround}
+  \begin{itemize}
+  \item R: Rscript -e 'source("script.R"); fun(...)'
+  \item Python3.x: python3 -c `import fun from script; fun(...)'
+  \end{itemize}
+  \textbf{covent scripts to commands}
+  \begin{itemize}
+  \item use special header ``!\#Rscript'' or ``!\#python3''
+  \item \texttt{chmod +x} (linux only)
+    \begin{itemize}
+    \item \textbf{hpcwp} is itself a python script turned command.
+    \end{itemize}
+  \end{itemize}
+\end{frame}
+%------------------------------------------------
+\subsection{compose series of commands (stub)}
+\begin{frame}
+  \frametitle{compose series of commands}
+  \begin{itemize}
+  \item in the motivation example, writing 24 commands into
+    ``tidy.sh'' was tedious but not impossible
+  \item in many project however, the number of commands is impractical for manual typing:
+    \begin{itemize}
+    \item write Freesurfer importation commands for 808 ADNI subjects;
+    \item another 808 for cortex reconstruction;
+    \item 100 simulations to compare 3 metods over 4 sample sizes, 1200 in total;
+    \end{itemize}
+  \item automated command writing:
+    \begin{itemize}
+    \item use excel
+    \item use \xemp{R}: \textbf{expand.grid}, \textbf{paste}, and
+      \textbf{sprintf}
+    \item use Python generator/iterator and string.format
+    \item use GNU script
+    \end{itemize}
+  \end{itemize}
+\end{frame}
+%------------------------------------------------
+\subsection{aggregate outputs (stub)}
+\begin{frame}
+  \frametitle{aggregate outputs}
+  We try everything to minimize human labor
+  \begin{itemize}
+  \item Using R:
+    \begin{itemize}
+    \item \xemp{dir} to enumerate output filenames;
+    \item \xemp{read.\{talbe, delim, csv\}} + \xemp{lapply} to read all outputs
+      as R \xemp{data.frame}, and put into an R \xemp{list};
+    \item \xemp{do.call} + \xemp{cbind} to concatenate all data frames;
+    \end{itemize}
+  \end{itemize}
+\end{frame}
+%------------------------------------------------
 \begin{frame}
 \Huge{\centerline{The End}}
 \end{frame}
-
 %----------------------------------------------------------------------------------------
 
 \end{document} 
