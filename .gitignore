@@ -55,3 +55,11 @@ docs/_build/
 
 # PyBuilder
 target/
+
+# latex intermediate files
+*.aux
+*.nav
+*.snm
+*.toc
+*.vrb
+*.out
