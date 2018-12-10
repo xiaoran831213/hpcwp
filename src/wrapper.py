@@ -31,7 +31,8 @@ def make_parser():
         '--sep',
         metavar='SEP',
         default='\n',
-        help=""" The command separator. Separated commands will be run in parallel as stand
+        help=
+        """ The command separator. Separated commands will be run in parallel as stand
         alone processes.
         def = %(default)s""")
 
@@ -40,7 +41,8 @@ def make_parser():
         '--mld',
         '--module-load',
         action='append',
-        help=""" the HPCC module to be loaded, can be specified multple times for more
+        help=
+        """ the HPCC module to be loaded, can be specified multple times for more
         than one modules. """)
 
     # the resource to be linked
@@ -48,14 +50,16 @@ def make_parser():
         '--ln',
         action='append',
         dest='lnk',
-        help="""the resources to be linked into the working directory of HPCC scripts,
+        help=
+        """the resources to be linked into the working directory of HPCC scripts,
         can be specified multiple times.""")
     # the resource to be copied
     parser.add_argument(
         '--cp',
         action='append',
         dest='cpy',
-        help="""the resources to be copied into the working directory of HPCC scripts,
+        help=
+        """the resources to be copied into the working directory of HPCC scripts,
         can be specified multiple times.""")
     # the resource to be copied
     parser.add_argument(
@@ -63,7 +67,8 @@ def make_parser():
         '--mkdir',
         action='append',
         dest='mkd',
-        help="""the directory to be created in the working directory of HPCC scripts,
+        help=
+        """the directory to be created in the working directory of HPCC scripts,
         can be specified multiple times.""")
 
     # number of iterations
@@ -83,7 +88,7 @@ def make_parser():
         '--destination',
         '-d',
         default='.',
-        metavar='D',
+        metavar='DST',
         help="""
         destination to store HPCC script and output, which is also the working
         directory of the HPCC script.
@@ -201,12 +206,13 @@ def make_parser():
         def = %(default)s.""")
 
     parser.add_argument(
-        '--gpu',
-        action='store_const', const=1,
-        dest='gpu',
+        '--con',
+        '--constraint',
+        metavar="CON",
+        type=str,
+        dest='con',
         help="""
-        use gpu
-        def = %(default)s. """)
+        constraint to on the features, such as intel and gpu. """)
 
     # script decoration.
     parser.add_argument(
@@ -238,16 +244,36 @@ def make_parser():
         default="{n:04X}",
         help="""
         Log string format. Specify 'None' to suppress logging.
-        def=$(default)s. """)
+        def=%(default)s. """)
+
+    parser.add_argument(
+        '--pbs',
+        action='store_const',
+        const=True,
+        dest='pbs',
+        default=0,
+        help="""
+        Use lengency job scheduler Torque-PBS instead of SLURM.
+        def=%(default)s. """)
+
+    parser.add_argument(
+        '--email',
+        type=str,
+        dest='email',
+        default=None,
+        help="""
+        the email address to inform failed jobs.
+        def=%(default)s. """)
 
     parser.add_argument(
         '--debug',
-        action='store_const', const=1,
+        action='store_const',
+        const=1,
         dest='debug',
         help="""
         Debug wwitch. In debug mode, the generated command line will be
-        printed to STDOUT instead of destination folder $(dst)s.
-        def=$(default)s. """)
+        printed to STDOUT instead of destination folder {DST}.
+        def=%(default)s. """)
 
     return parser
 
