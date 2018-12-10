@@ -7,11 +7,11 @@ import shutil
 
 def mkdirs(d):
     """ make deep folder """
-    try:
-        os.makedirs(d)
-    except OSError as e:
-        if e.errno != os.errno.EEXIST:
-            raise
+    if pt.isdir(d):
+        return
+    if pt.isfile(d):
+        raise Exception(d + " exists as a file.")
+    os.makedirs(d)
 
 
 def solvept(p):
@@ -27,7 +27,10 @@ def __flatten__(x, sep=','):
 
 
 class hpcc_iter:
-    def __init__(self, src, dst='.', tag='',
+    def __init__(self,
+                 src,
+                 dst='.',
+                 tag='',
                  asz=1,
                  bsz=3,
                  qsz=1,
@@ -63,6 +66,7 @@ class hpcc_iter:
         not directly specified by {wtm}.
 
         -------- kw: the keyworkds --------
+        ** pbs: use PBS(TORQUE) scheduler, instead of SLURM.
         ** cpy: a list of resources to copy to the script environment (e.g.
         source code dependencies).
         ** lnk: a list of resources to link into the script environment (e.g.
@@ -89,8 +93,9 @@ class hpcc_iter:
         """
         self.itr = iter(src)
         self.dst = '/tmp/hpc' if dst is None else pt.normpath(dst)
+        self.pbs = kw.get('pbs', 0)  # use PBS-TORQUE?
 
-        self.sdr = 'pbs'  # script directory
+        self.sdr = 'cms'        # command scripts
         mkdirs('{dst}/{sdr}'.format(dst=self.dst, sdr=self.sdr))
         self.tag = tag
 
@@ -99,11 +104,12 @@ class hpcc_iter:
         self.qsz = 1 if qsz is None else qsz  # queue size: command per queue
 
         self.mpc = 1 if mpc is None else mpc  # memory per node
-        self.tpc = 4.0/self.qsz if tpc is None else tpc  # time per process
+        self.tpc = 4.0 / self.qsz if tpc is None else tpc  # time per process
 
         self.mld = __flatten__(kw.get('mld', []))  # modules to load
         self.pfx = kw.get('pfx', [])               # batch prefix
         self.sfx = kw.get('sfx', [])               # batch surfix
+        self.con = kw.get('con')                   # constraints
 
         # hardware resource list
         self.ppn = kw.get('ppn', 1)
@@ -111,16 +117,11 @@ class hpcc_iter:
         self.wtm = kw.get('wtm', self.qsz * self.tpc)
         self.mem = kw.get('mem', self.mpc * self.nds)
 
-        gpu = kw.get('gpu', None)
-        if gpu == 14:
-            gpu = '\'gpgpu:intel14\''
-        elif gpu == 16:
-            gpu = '\'gpgpu:intel16\''
-        elif gpu:
-            gpu = 'gpgpu'
-        else:
-            gpu = None
-        self.gpu = gpu
+        # email
+        self.email = kw.get('email')
+
+        # job submitter
+        self.sbm = 'qsub' if self.pbs else 'sbatch'
 
         # file resource list
         cpy = __flatten__(kw.get('cpy', []))
@@ -144,7 +145,7 @@ class hpcc_iter:
 
         # iteration contex
         self.fo = open(os.devnull, 'w')  # script file
-        self.ix = -1                     # command index
+        self.ix = -1  # command index
 
         self.debug = debug
 
@@ -160,13 +161,13 @@ class hpcc_iter:
         The following relationship holds among i, j and k:
         n = i * batch_size + j * queue_size + k
         """
-        n = self.ix             # command in total
-        q = n // self.qsz       # queue in total
-        b = q // self.bsz       # batch in total
-        a = b // self.asz       # array in total
+        n = self.ix  # command in total
+        q = n // self.qsz  # queue in total
+        b = q // self.bsz  # batch in total
+        a = b // self.asz  # array in total
 
-        k = n % self.qsz        # command in queue
-        j = q % self.bsz        # queue in batch
+        k = n % self.qsz  # command in queue
+        j = q % self.bsz  # queue in batch
         # batch in array
         i = b % self.asz if self.asz > 1 else b
 
@@ -182,11 +183,11 @@ class hpcc_iter:
         inf = self.__inf__()
 
         # open a new script file
-        if self.asz > 1:        # multiple arrays:
-            fbt = pt.join('{}', '{}', '{a:03d}_{i:03d}.sh')
-        else:                   # only one array
-            fbt = pt.join('{}', '{}', '{b:03d}.sh')
-        fbt = fbt.format(self.dst, self.sdr, **inf)
+        if self.asz > 1:  # multiple arrays:
+            fbt = pt.join(self.dst, self.sdr, '{a:03d}_{i:03d}.sh')
+        else:  # only one array
+            fbt = pt.join(self.dst, self.sdr, '{b:03d}.sh')
+        fbt = fbt.format(**inf)
 
         if self.debug:
             self.fo = sys.stdout
@@ -199,41 +200,75 @@ class hpcc_iter:
         self.fo.write('#!/bin/bash -login\n')
 
         # -------- resource requsition -------- #
-        # nodes and processor per node
-        self.fo.write('#PBS -l nodes={}:ppn={}\n'.format(self.nds, self.ppn))
         # walltime
-        hh = int(self.wtm)
-        mm = int((self.wtm - hh) * 60)
-        self.fo.write('#PBS -l walltime={:02d}:{:02d}:00\n'.format(hh, mm))
-        # memory
-        self.fo.write('#PBS -l mem={}M\n'.format(int(self.mem * 1024)))
-        # gpu
-        if self.gpu:
-            self.fo.write('#PBS -l feature={}\n'.format(self.gpu))
+        _h = int(self.wtm)
+        _m = int((self.wtm - _h) * 60)
+        wtm = '{0:02d}:{1:02d}:00'.format(_h, _m)
 
-        # others
-        self.fo.write('#PBS -j oe\n')  # combin stdout and stderr
-        self.fo.write('#PBS -V\n')     # copy environment vars
+        # memory
+        mem = int(self.mem * 1024)
+
         # batch name
         tag = self.tag + '_' if self.tag else ''
-        if self.asz > 1:        # append array_batch index
+        if self.asz > 1:  # append array_batch index
             nms = '{a:03d}_{i:03d}'.format(**inf)
-        else:                   # append batch index
+        else:  # append batch index
             nms = '{b:03d}'.format(**inf)
 
-        self.fo.write('#PBS -N {}{}\n'.format(tag, nms))
-        # captured stdout & stderr
-        self.fo.write('#PBS -o std/{}\n'.format(nms))
+        if self.pbs:            # PBS-TORQUE
+            # nodes and processor/core per node
+            self.fo.write('#PBS -l nodes={0}:ppn={1}\n'.format(
+                self.nds, self.ppn))
+            self.fo.write('#PBS -l walltime={0}\n'.format(wtm))
+            # memory
+            self.fo.write('#PBS -l mem={0}M\n'.format(mem))
+            # constraint on features
+            if self.con:
+                self.fo.write('#PBS -l feature={0}\n'.format(self.con))
+            # others
+            self.fo.write('#PBS -j oe\n')  # join stdout and stderr
+            self.fo.write('#PBS -V\n')  # copy environment vars
+            # name
+            self.fo.write('#PBS -N {0}{1}\n'.format(tag, nms))
+            # captured stdout & stderr
+            self.fo.write('#PBS -o std/{0}\n'.format(nms))
+            # email
+            if self.email is not None:
+                self.fo.write('#PBS -M {0}\n'.format(self.email))
+        else:                   # SLURM
+            # nodes and processor/core per node
+            self.fo.write('#SBATCH -N {0} -c {1}\n'.format(self.nds, self.ppn))
+            self.fo.write('#SBATCH --time={0}\n'.format(wtm))
+            # memory
+            self.fo.write('#SBATCH --mem={0}M\n'.format(mem))
+            # constraint on features
+            if self.con:
+                fmt = "#SBATCH --constraint=\"{}\"\n"
+                self.fo.write(fmt.format(self.con))
+            # others
+            self.fo.write('#SBATCH --export=ALL\n')  # environment vars
+            # name
+            self.fo.write('#SBATCH -J {0}{1}\n'.format(tag, nms))
+            # captured stdout & stderr
+            self.fo.write('#SBATCH -o std/{0}\n'.format(nms))
+            # email
+            if self.email is not None:
+                self.fo.write('#SBATCH --mail-user={0}\n'.format(self.email))
+
 
         # module loading
         if len(self.mld) > 0:
             self.fo.write('\n')
             self.fo.writelines(
-                ['module load {}\n'.format(m) for m in self.mld])
+                ['module load {0}\n'.format(m) for m in self.mld])
 
         # working directory
         self.fo.write('\n')
-        self.fo.write('[ -n "$PBS_O_WORKDIR" ] && cd "$PBS_O_WORKDIR"\n\n')
+        if self.pbs:
+            cd = '[ -n "$PBS_O_WORKDIR" ] && cd "$PBS_O_WORKDIR"\n\n'
+        else:
+            cd = '[ -n "$SLURM_SUBMIT_DIR" ] && cd "$SLURM_SUBMIT_DIR"\n\n'
+        self.fo.write(cd)
 
         # batch prefix
         if len(self.pfx) > 0:
@@ -270,8 +305,8 @@ class hpcc_iter:
         # except when the command is at the beginning of a new array, always
         # chain up the new batch when wrapping up the last one.
         if self.asz > 1 and inf['i'] != self.asz - 1 and not eoc:
-            qsb = '\nqsub {}/{:03d}_{:03d}.sh'.format(
-                self.sdr, inf['a'], inf['i'] + 1)
+            qsb = '\n{0} {1}/{a:03d}_{i:03d}.sh'.format(
+                self.sbm, self.sdr, a=inf['a'], i=inf['i'] + 1)
             self.fo.write(qsb)
 
         # close the script file
@@ -306,15 +341,17 @@ class hpcc_iter:
 
     def __write_submiter__(self):
         # submission format
-        if self.asz > 1:        # first batch of every array
-            fmt = '(qsub {})&\n'.format(pt.join(self.sdr, '{:03d}_000.sh'))
-        else:                   # every batch
-            fmt = '(qsub {})&\n'.format(pt.join(self.sdr, '{:03d}.sh'))
+        if self.asz > 1:  # first batch of every array
+            fmt = '({0} {1})&\n'.format(
+                self.sbm, pt.join(self.sdr, '{0:03d}_000.sh'))
+        else:  # every batch
+            fmt = '({0} {1})&\n'.format(
+                self.sbm, pt.join(self.sdr, '{0:03d}.sh'))
 
         if self.debug:
             f = sys.stdout
         else:
-            f = open('{}/sub.sh'.format(self.dst), 'w')
+            f = open('{0}/sub.sh'.format(self.dst), 'w')
 
         f.write('#!/bin/bash\n')
         f.write('cd "`dirname $0`"\n')
@@ -323,7 +360,7 @@ class hpcc_iter:
         # number of command covered by each submission
         ssz = self.qsz * self.bsz * self.asz
         for l, i in enumerate(range(0, self.ix, ssz)):
-            f.write(fmt.format(i//ssz))
+            f.write(fmt.format(i // ssz))
             if (l + 1) % 10 == 0:
                 f.write('wait\n')
         f.write('wait\n')
@@ -378,6 +415,8 @@ def test1():
         wtm=2,
         mem=1,
         mld=['GNU4.9,R/3.1.0', 'Scipy/19.2,Numpy/11.3,Python/2.78'],
+        pbs=0,
+        con='intel16|intel18',
         pfx=[
             'export THEANO_FLAGS=\'base_compiledir=/mnt/home/tongxia1/TC/{n}\''
         ],
