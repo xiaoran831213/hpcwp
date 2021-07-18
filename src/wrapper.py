@@ -479,9 +479,9 @@ class hpcc_iter:
 
         # open a new script file
         if self.asz > 1:  # multiple arrays:
-            fbt = pt.join(self.dst, self.sdr, '{a:03d}_{i:03d}.sh')
+            fbt = pt.join(self.dst, self.sdr, '{a:03X}_{i:03X}.sh')
         else:  # only one array
-            fbt = pt.join(self.dst, self.sdr, '{b:03d}.sh')
+            fbt = pt.join(self.dst, self.sdr, '{b:03X}.sh')
         fbt = fbt.format(**inf)
 
         if self.debug:
@@ -506,9 +506,9 @@ class hpcc_iter:
         # batch name
         tag = self.tag + '_' if self.tag else ''
         if self.asz > 1:  # append array_batch index
-            nms = '{a:03d}_{i:03d}'.format(**inf)
+            nms = '{a:03X}_{i:03X}'.format(**inf)
         else:  # append batch index
-            nms = '{b:03d}'.format(**inf)
+            nms = '{b:03X}'.format(**inf)
 
         if self.pbs:            # PBS-TORQUE
             # nodes and processor/core per node
@@ -603,7 +603,7 @@ class hpcc_iter:
         # except when the command is at the beginning of a new array, always
         # chain up the new batch when wrapping up the last one.
         if self.asz > 1 and inf['i'] != self.asz - 1 and not eoc:
-            qsb = '\n{0} {1}/{a:03d}_{i:03d}.sh'.format(
+            qsb = '\n{0} {1}/{a:03X}_{i:03X}.sh'.format(
                 self.sbm, self.sdr, a=inf['a'], i=inf['i'] + 1)
             self.fo.write(qsb)
 
@@ -641,10 +641,10 @@ class hpcc_iter:
         # submission format
         if self.asz > 1:  # first batch of every array
             fmt = '({0} {1})&\n'.format(
-                self.sbm, pt.join(self.sdr, '{0:03d}_000.sh'))
+                self.sbm, pt.join(self.sdr, '{0:03X}_000.sh'))
         else:  # every batch
             fmt = '({0} {1})&\n'.format(
-                self.sbm, pt.join(self.sdr, '{0:03d}.sh'))
+                self.sbm, pt.join(self.sdr, '{0:03X}.sh'))
 
         if self.debug:
             f = sys.stdout
@@ -659,7 +659,7 @@ class hpcc_iter:
         ssz = self.qsz * self.bsz * self.asz
         for l, i in enumerate(range(0, self.ix, ssz)):
             f.write(fmt.format(i // ssz))
-            if (l + 1) % 10 == 0:
+            if (l + 1) % 20 == 0:
                 f.write('wait\n')
         f.write('wait\n')
 
